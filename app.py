@@ -1,15 +1,10 @@
 """
-Diário de Bordo Contemporâneo v2 — A3 Landscape
-Melhorias aplicadas:
-  - Tracker de hábitos + barra de energia gráfica no header
-  - Mini-kanban (A FAZER / EM CURSO / FEITO) no lugar da lista numerada
-  - Contador de Pomodoros integrado ao Foco de Ouro
-  - Seção reflexiva expandida com campo "Amanhã começa com:"
-  - Rodapé simplificado (sem fórmula) para ganhar espaço
-  - Campo Dia # no header
-
-Dependência: pip install reportlab
-Uso:         python app.py [caminho_saida.pdf]
+Diário de Bordo Contemporâneo v3 — A3 Landscape
+Correções de layout para impressão:
+  - Layout reestruturado: Notas flexíveis abaixo de Captura e Kanban.
+  - Largura das colunas 1, 2, 3 e 4 aumentadas.
+  - Altura das linhas para escrita aumentadas (lh maior).
+  - Número de linhas da reflexão (item 5) reduzidas naturalmente pelo espaçamento.
 """
 
 import os
@@ -20,388 +15,428 @@ from reportlab.lib.pagesizes import A3, landscape
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-# ── Paleta & tipografia ───────────────────────────────────────────────────────
-PAGE_W, PAGE_H = landscape(A3)
-MARGIN = 10 * mm
-
-BLUE        = colors.HexColor("#2980b9")
-BLUE_DARK   = colors.HexColor("#1a5276")
-BLUE_LIGHT  = colors.HexColor("#ebf5fb")
-ORANGE      = colors.HexColor("#e67e22")
-ORANGE_LIGHT= colors.HexColor("#fef5ec")
-GREEN       = colors.HexColor("#27ae60")
-GREEN_LIGHT = colors.HexColor("#eafaf1")
-GRAY        = colors.HexColor("#bdc3c7")
-GRAY_DARK   = colors.HexColor("#7f8c8d")
-PANEL       = colors.HexColor("#fcfcfc")
-TEXT        = colors.HexColor("#2c3e50")
-REFL        = colors.HexColor("#f4f9fd")
-LINE_COLOR  = colors.HexColor("#e8e8e8")
-
+# ── Página ────────────────────────────────────────────────────────────────────
+PAGE_W, PAGE_H = landscape(A3)   # 420 x 297 mm  →  ~1190 x 842 pt
+MARGIN    = 10 * mm
 CONTENT_W = PAGE_W - 2 * MARGIN
-FONT      = "Helvetica"
-FONT_B    = "Helvetica-Bold"
-FONT_I    = "Helvetica-Oblique"
+
+# ── Paleta ────────────────────────────────────────────────────────────────────
+BLUE         = colors.HexColor("#2980b9")
+BLUE_DARK    = colors.HexColor("#1a5276")
+BLUE_LIGHT   = colors.HexColor("#ddeef8")
+ORANGE       = colors.HexColor("#e67e22")
+ORANGE_LIGHT = colors.HexColor("#fef0e3")
+GREEN        = colors.HexColor("#27ae60")
+GREEN_LIGHT  = colors.HexColor("#e6f9ee")
+GRAY         = colors.HexColor("#c0c7cc")
+GRAY_DARK    = colors.HexColor("#7f8c8d")
+PANEL        = colors.HexColor("#fafafa")
+TEXT         = colors.HexColor("#2c3e50")
+REFL         = colors.HexColor("#f0f6fc")
+LINE         = colors.HexColor("#e2e6ea")
+WHITE        = colors.white
+
+# ── Fontes ────────────────────────────────────────────────────────────────────
+F  = "Helvetica"
+FB = "Helvetica-Bold"
+FI = "Helvetica-Oblique"
 
 
-# ── Primitivas ────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# Primitivas
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def section_box(c, x, y, w, h, title, title_size=8, color=BLUE):
-    """Retângulo com header colorido. Retorna y logo abaixo do header."""
-    bar_h = 15
+def box(c, x, y, w, h, title, fs=7.5, bar_h=14, color=BLUE):
+    """Caixa com barra de título colorida. Retorna y logo abaixo da barra."""
     c.setStrokeColor(GRAY)
     c.setLineWidth(0.5)
     c.setFillColor(PANEL)
     c.rect(x, y - h, w, h, fill=1, stroke=1)
     c.setFillColor(color)
+    c.setStrokeColor(color)
     c.rect(x, y - bar_h, w, bar_h, fill=1, stroke=0)
-    c.setFillColor(colors.white)
-    c.setFont(FONT_B, title_size)
-    c.drawString(x + 5, y - bar_h + 4, title.upper())
+    c.setFillColor(WHITE)
+    c.setFont(FB, fs)
+    c.drawString(x + 5, y - bar_h + 3.5, title.upper())
     return y - bar_h
 
 
-def write_lines(c, x, y_top, w, n, line_h=14, prefix=False):
-    """Linhas tracejadas para escrita manual."""
+def hlines(c, x, y_top, w, n, lh=16, prefix=False, color=LINE):
+    """n linhas horizontais tracejadas para escrita."""
     c.setDash(2, 3)
-    c.setStrokeColor(GRAY)
-    c.setLineWidth(0.4)
+    c.setStrokeColor(color)
+    c.setLineWidth(0.45)
     for i in range(n):
-        yy = y_top - (i + 1) * line_h
+        yy = y_top - (i + 1) * lh
         if prefix:
-            c.setFont(FONT_B, 7.5)
+            c.setFont(FB, 7.5)
             c.setFillColor(GRAY_DARK)
-            c.drawString(x + 3, yy + 3, f"{i + 1}.")
-        c.line(x + (16 if prefix else 4), yy, x + w - 4, yy)
+            c.drawString(x + 4, yy + 4, f"{i + 1}.")
+        c.line(x + (20 if prefix else 5), yy, x + w - 5, yy)
     c.setDash()
 
 
-def note_lines(c, x, y_top, w, h, line_h=14):
-    """Linhas suaves para área de escrita livre."""
+def softlines(c, x, y_top, w, h, lh=16):
+    """Linhas suaves para áreas de escrita livre."""
     c.setDash(1, 0)
-    c.setStrokeColor(LINE_COLOR)
-    c.setLineWidth(0.5)
-    for i in range(1, int(h / line_h) + 1):
-        c.line(x + 4, y_top - i * line_h, x + w - 4, y_top - i * line_h)
+    c.setStrokeColor(LINE)
+    c.setLineWidth(0.4)
+    n = int(h / lh)
+    for i in range(1, n + 1):
+        c.line(x + 5, y_top - i * lh, x + w - 5, y_top - i * lh)
 
 
-def checkbox(c, x, y, size=7):
-    """Desenha um checkbox quadrado."""
+def cb(c, x, y, size=8):
+    """Checkbox quadrado."""
     c.setStrokeColor(GRAY_DARK)
-    c.setLineWidth(0.6)
-    c.setFillColor(colors.white)
+    c.setLineWidth(0.7)
+    c.setFillColor(WHITE)
     c.rect(x, y, size, size, fill=1, stroke=1)
 
 
-def energy_bar(c, x, y, value=0, max_val=5, bar_w=60, bar_h=8):
-    """Barra gráfica de energia para preencher à caneta."""
-    seg_w = bar_w / max_val
-    for i in range(max_val):
+def energy_bar(c, x, y, segments=5, seg_w=14, seg_h=9):
+    """Barra de energia segmentada — preenche à caneta."""
+    for i in range(segments):
         c.setStrokeColor(BLUE)
-        c.setLineWidth(0.6)
-        c.setFillColor(colors.white)
-        c.rect(x + i * seg_w, y, seg_w - 1, bar_h, fill=1, stroke=1)
-    # label
-    c.setFont(FONT, 6.5)
-    c.setFillColor(GRAY_DARK)
-    c.drawString(x + bar_w + 3, y + 1, "↑ preencha")
+        c.setLineWidth(0.7)
+        c.setFillColor(WHITE)
+        c.rect(x + i * (seg_w + 1), y, seg_w, seg_h, fill=1, stroke=1)
 
 
-# ── Seções ────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# Header  (altura total ~52 pt)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def draw_header(c, cursor):
-    """Retorna novo cursor após o header."""
-    # Título + Dia #
+    y = cursor
+
+    # ── Faixa azul de título ─────────────────────────────────────────────────
+    title_bar_h = 22
     c.setFillColor(BLUE)
-    c.setFont(FONT_B, 19)
-    c.drawString(MARGIN, cursor - 17, "DIÁRIO DE BORDO CONTEMPORÂNEO")
+    c.rect(MARGIN, y - title_bar_h, CONTENT_W, title_bar_h, fill=1, stroke=0)
 
-    c.setFont(FONT_B, 10)
-    c.setFillColor(GRAY_DARK)
-    dia_label = "DIA #"
-    dw = c.stringWidth(dia_label, FONT_B, 10)
-    c.drawString(MARGIN + CONTENT_W - 80, cursor - 17, dia_label)
-    c.setStrokeColor(GRAY)
+    c.setFillColor(WHITE)
+    c.setFont(FB, 13)
+    c.drawString(MARGIN + 6, y - title_bar_h + 6, "DIÁRIO DE BORDO CONTEMPORÂNEO")
+
+    # DIA # à direita
+    c.setFont(FB, 9)
+    label = "DIA #"
+    lw = c.stringWidth(label, FB, 9)
+    c.drawString(MARGIN + CONTENT_W - 90, y - title_bar_h + 6, label)
+    c.setStrokeColor(WHITE)
     c.setLineWidth(0.8)
-    c.line(MARGIN + CONTENT_W - 80 + dw + 2, cursor - 14,
-           MARGIN + CONTENT_W - 80 + dw + 42, cursor - 14)
+    c.line(MARGIN + CONTENT_W - 90 + lw + 3, y - title_bar_h + 8,
+           MARGIN + CONTENT_W - 6,            y - title_bar_h + 8)
 
-    cursor -= 22
-    c.setStrokeColor(BLUE)
-    c.setLineWidth(2)
-    c.line(MARGIN, cursor, MARGIN + CONTENT_W, cursor)
-    cursor -= 3
+    y -= title_bar_h
 
-    # Linha de meta-info: DATA | ENERGIA (barra) | HIGIENE DIGITAL
-    col_w = CONTENT_W / 3
-    y_meta = cursor - 13
+    # ── Linha de meta: DATA | ENERGIA | HIGIENE ──────────────────────────────
+    meta_h = 16
+    c.setFillColor(BLUE_LIGHT)
+    c.rect(MARGIN, y - meta_h, CONTENT_W, meta_h, fill=1, stroke=0)
 
     # DATA
-    c.setFont(FONT_B, 8)
+    mx = MARGIN + 6
+    my = y - meta_h + 4
+    c.setFont(FB, 7.5)
+    c.setFillColor(BLUE_DARK)
+    c.drawString(mx, my, "DATA:")
+    mx += c.stringWidth("DATA:", FB, 7.5) + 4
+    c.setFont(F, 7.5)
     c.setFillColor(TEXT)
-    c.drawString(MARGIN + 4, y_meta, "DATA:")
-    c.setFont(FONT, 8)
-    c.drawString(MARGIN + 4 + c.stringWidth("DATA:", FONT_B, 8) + 3, y_meta,
-                 "____/____/_______")
+    c.drawString(mx, my, "____/____/_______")
 
-    # ENERGIA — barra gráfica
-    e_x = MARGIN + col_w + 4
-    c.setFont(FONT_B, 8)
-    c.setFillColor(TEXT)
-    c.drawString(e_x, y_meta, "ENERGIA:")
-    energy_bar(c, e_x + c.stringWidth("ENERGIA:", FONT_B, 8) + 4,
-               y_meta - 1, bar_w=55, bar_h=8)
+    # ENERGIA
+    ex = MARGIN + CONTENT_W * 0.25
+    c.setFont(FB, 7.5)
+    c.setFillColor(BLUE_DARK)
+    c.drawString(ex, my, "ENERGIA:")
+    energy_bar(c, ex + c.stringWidth("ENERGIA:", FB, 7.5) + 4,
+               my - 1, seg_w=12, seg_h=8)
 
-    # HIGIENE DIGITAL — checkboxes
-    hx = MARGIN + 2 * col_w + 4
-    c.setFont(FONT_B, 8)
-    c.setFillColor(TEXT)
-    c.drawString(hx, y_meta, "HIGIENE DIGITAL:")
-    habits_inline = ["OFF", "MESA LIMPA", "HIDRATAÇÃO"]
-    hx2 = hx + c.stringWidth("HIGIENE DIGITAL:", FONT_B, 8) + 4
-    for h_label in habits_inline:
-        checkbox(c, hx2, y_meta - 1)
-        c.setFont(FONT, 7.5)
+    # HIGIENE DIGITAL
+    hx = MARGIN + CONTENT_W * 0.52
+    c.setFont(FB, 7.5)
+    c.setFillColor(BLUE_DARK)
+    c.drawString(hx, my, "HIGIENE DIGITAL:")
+    hx += c.stringWidth("HIGIENE DIGITAL:", FB, 7.5) + 6
+    for label in ["OFF", "MESA LIMPA", "HIDRATAÇÃO"]:
+        cb(c, hx, my - 1, size=8)
+        c.setFont(F, 7.5)
         c.setFillColor(TEXT)
-        c.drawString(hx2 + 9, y_meta, h_label)
-        hx2 += c.stringWidth(h_label, FONT, 7.5) + 18
+        c.drawString(hx + 10, my, label)
+        hx += c.stringWidth(label, F, 7.5) + 22
 
-    # Linha separadora
+    y -= meta_h
+
+    # ── Linha de hábitos ──────────────────────────────────────────────────────
+    hab_h = 14
+    c.setFillColor(colors.HexColor("#f5f8fa"))
+    c.rect(MARGIN, y - hab_h, CONTENT_W, hab_h, fill=1, stroke=0)
+    # borda inferior
     c.setStrokeColor(GRAY)
-    c.setLineWidth(0.3)
-    c.line(MARGIN, cursor - 18, MARGIN + CONTENT_W, cursor - 18)
-    cursor -= 22
+    c.setLineWidth(0.4)
+    c.line(MARGIN, y - hab_h, MARGIN + CONTENT_W, y - hab_h)
 
-    # Tracker de hábitos diários
-    habits = ["Exercício", "Leitura", "Sem redes sociais", "8h sono"]
-    hx = MARGIN + 4
-    c.setFont(FONT_B, 7.5)
+    hx = MARGIN + 6
+    hy = y - hab_h + 3
+    c.setFont(FB, 7)
     c.setFillColor(GRAY_DARK)
-    c.drawString(hx, cursor - 10, "HÁBITOS:")
-    hx += c.stringWidth("HÁBITOS:", FONT_B, 7.5) + 8
-    for h in habits:
-        checkbox(c, hx, cursor - 12)
-        c.setFont(FONT, 7.5)
+    c.drawString(hx, hy, "HÁBITOS:")
+    hx += c.stringWidth("HÁBITOS:", FB, 7) + 8
+
+    for label in ["Exercício", "Leitura", "Sem redes sociais", "8h sono"]:
+        cb(c, hx, hy - 1, size=7)
+        c.setFont(F, 7)
         c.setFillColor(TEXT)
-        c.drawString(hx + 9, cursor - 10, h)
-        hx += c.stringWidth(h, FONT, 7.5) + 20
+        c.drawString(hx + 9, hy, label)
+        hx += c.stringWidth(label, F, 7) + 20
 
-    # Água
-    c.setFont(FONT_B, 7.5)
+    c.setFont(FB, 7)
     c.setFillColor(GRAY_DARK)
-    c.drawString(hx, cursor - 10, "ÁGUA:")
-    hx += c.stringWidth("ÁGUA:", FONT_B, 7.5) + 4
+    c.drawString(hx, hy, "ÁGUA:")
+    hx += c.stringWidth("ÁGUA:", FB, 7) + 5
     for _ in range(8):
-        checkbox(c, hx, cursor - 12, size=6)
-        hx += 10
+        cb(c, hx, hy - 1, size=7)
+        hx += 11
 
-    cursor -= 18
-    c.setStrokeColor(colors.HexColor("#ecf0f1"))
-    c.setLineWidth(1)
-    c.line(MARGIN, cursor, MARGIN + CONTENT_W, cursor)
-    cursor -= 4
-
-    return cursor
+    y -= hab_h
+    return y
 
 
-def draw_columns(c, cursor):
-    """Captura, Kanban+Pomodoro e Notas. Retorna novo cursor."""
-    col_area_h = 188
-    left_w  = CONTENT_W * 0.30
-    mid_w   = CONTENT_W * 0.30
-    right_w = CONTENT_W * 0.37
-    gap     = CONTENT_W * 0.015
+# ═══════════════════════════════════════════════════════════════════════════════
+# Seções Intermediárias (Itens 1, 2, 3 e 4)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    mid_x   = MARGIN + left_w + gap
-    right_x = mid_x + mid_w + gap
+def draw_sections(c, cursor):
+    GAP       = 12
+    COL_TOP_H = 260 # Altura das colunas superiores (1, 2 e 3)
 
-    # ── Coluna A: Captura GTD ──────────────────────────────────────────────
-    cap_h = 75
-    y_cap = section_box(c, MARGIN, cursor, left_w, cap_h,
-                        "1. Captura (GTD — Caixa de Entrada)")
-    write_lines(c, MARGIN, y_cap, left_w, 6, line_h=13)
+    # Agora temos apenas 2 colunas superiores para acomodar (1, 2) e (3). 
+    # Dessa forma elas ficam muito mais largas.
+    lw = (CONTENT_W - GAP) * 0.42 # 42% para Captura e Priorização
+    rw = (CONTENT_W - GAP) * 0.58 # 58% para o Kanban
 
-    # ── Priorização Ivy Lee abaixo da captura ──────────────────────────────
-    ivy_h = col_area_h - cap_h - 4
-    y_ivy = section_box(c, MARGIN, cursor - cap_h - 4,
-                        left_w, ivy_h,
-                        "2. Priorização (Ivy Lee / 80-20)")
-    write_lines(c, MARGIN, y_ivy, left_w, 6, line_h=13, prefix=True)
+    lx = MARGIN
+    rx = MARGIN + lw + GAP
 
-    # Foco de Ouro + Pomodoros
-    focus_y = cursor - cap_h - 4 - ivy_h + 4
-    focus_h = 44
-    c.setStrokeColor(ORANGE)
-    c.setLineWidth(1.5)
+    # ── Coluna A: Captura ─────────────────────────────────────────────────────
+    cap_h = 100
+    yi = box(c, lx, cursor, lw, cap_h, "1. Captura  —  GTD / Caixa de Entrada", fs=7.5)
+    # Espaçamento de linha aumentado de 15 para 20
+    hlines(c, lx, yi, lw, 4, lh=20) 
+
+    # ── Coluna A: Priorização ─────────────────────────────────────────────────
+    prio_top  = cursor - cap_h - GAP
+    prio_h    = COL_TOP_H - cap_h - GAP
+    yi2 = box(c, lx, prio_top, lw, prio_h, "2. Priorização  —  Ivy Lee / 80-20", fs=7.5)
+    # Espaçamento de linha aumentado de 15 para 22
+    hlines(c, lx, yi2, lw, 4, lh=22, prefix=True)
+
+    # Foco de Ouro + Pomodoros (rodapé da caixa de priorização)
+    fo_h  = 50
+    fo_y  = cursor - COL_TOP_H + 4
+    fo_x  = lx + 5
+    fo_w  = lw - 10
+
     c.setFillColor(ORANGE_LIGHT)
-    c.rect(MARGIN + 4, focus_y, left_w - 8, focus_h, fill=1, stroke=1)
+    c.setStrokeColor(ORANGE)
+    c.setLineWidth(1.2)
+    c.rect(fo_x, fo_y, fo_w, fo_h, fill=1, stroke=1)
 
-    c.setFont(FONT_B, 7.5)
+    c.setFont(FB, 8)
     c.setFillColor(ORANGE)
-    c.drawString(MARGIN + 8, focus_y + focus_h - 10,
-                 "FOCO DE OURO (Trabalho Profundo):")
+    c.drawString(fo_x + 5, fo_y + fo_h - 11, "FOCO DE OURO  (Trabalho Profundo)")
     c.setStrokeColor(ORANGE)
     c.setLineWidth(0.8)
-    c.line(MARGIN + 8, focus_y + focus_h - 14,
-           MARGIN + left_w - 8, focus_y + focus_h - 14)
+    c.line(fo_x + 5, fo_y + fo_h - 15, fo_x + fo_w - 5, fo_y + fo_h - 15)
 
     # Pomodoros
-    c.setFont(FONT_B, 7)
+    c.setFont(FB, 7)
     c.setFillColor(ORANGE)
-    c.drawString(MARGIN + 8, focus_y + 22, "POMODOROS:")
-    px = MARGIN + 8 + c.stringWidth("POMODOROS:", FONT_B, 7) + 5
-    for group in range(3):
+    c.drawString(fo_x + 5, fo_y + 28, "POMODOROS:")
+    px = fo_x + 5 + c.stringWidth("POMODOROS:", FB, 7) + 5
+    for g in range(3):
         for _ in range(4):
-            checkbox(c, px, focus_y + 20, size=6)
-            px += 9
-        px += 4  # espaço entre grupos
+            cb(c, px, fo_y + 26, size=7)
+            px += 10
+        px += 5
 
-    c.setFont(FONT, 7)
+    c.setFont(F, 7)
     c.setFillColor(GRAY_DARK)
-    c.drawString(MARGIN + 8, focus_y + 9, "Sessão 1: ________________")
-    c.drawString(MARGIN + 8 + (left_w - 8) / 2, focus_y + 9,
-                 "Sessão 2: ________________")
+    half = fo_w / 2
+    c.drawString(fo_x + 5,        fo_y + 14, "Sessão 1: ______________")
+    c.drawString(fo_x + 5 + half, fo_y + 14, "Sessão 2: ______________")
 
-    # ── Coluna B: Mini-Kanban ──────────────────────────────────────────────
-    y_kan = section_box(c, mid_x, cursor, mid_w, col_area_h,
-                        "3. Kanban do Dia", color=BLUE_DARK)
+    # ── Coluna B: Kanban ──────────────────────────────────────────────────────
+    yi_k = box(c, rx, cursor, rw, COL_TOP_H, "3. Kanban do Dia", fs=7.5, color=BLUE_DARK)
 
-    kan_cols = [
-        ("A FAZER",  BLUE_LIGHT,  BLUE),
+    kan_data = [
+        ("A FAZER",  BLUE_LIGHT,   BLUE),
         ("EM CURSO", ORANGE_LIGHT, ORANGE),
         ("FEITO",    GREEN_LIGHT,  GREEN),
     ]
-    k_col_w = (mid_w - 10) / 3
-    k_col_h = col_area_h - 20
+    kw    = (rw - 10) / 3
+    kh    = COL_TOP_H - 22
+    k_top = yi_k - 4
 
-    for i, (label, bg, fg) in enumerate(kan_cols):
-        kx = mid_x + 4 + i * (k_col_w + 1)
-        ky_top = y_kan - 4
+    for i, (lbl, bg, fg) in enumerate(kan_data):
+        kx = rx + 4 + i * (kw + 1)
 
-        # fundo da coluna
         c.setFillColor(bg)
         c.setStrokeColor(fg)
         c.setLineWidth(0.8)
-        c.rect(kx, ky_top - k_col_h, k_col_w, k_col_h, fill=1, stroke=1)
+        c.rect(kx, k_top - kh, kw, kh, fill=1, stroke=1)
 
-        # label da coluna
+        # header da raia
         c.setFillColor(fg)
-        c.setFont(FONT_B, 7)
-        tw = c.stringWidth(label, FONT_B, 7)
-        c.drawString(kx + (k_col_w - tw) / 2, ky_top - 11, label)
+        c.rect(kx, k_top - 13, kw, 13, fill=1, stroke=0)
+        c.setFillColor(WHITE)
+        c.setFont(FB, 7)
+        tw = c.stringWidth(lbl, FB, 7)
+        c.drawString(kx + (kw - tw) / 2, k_top - 10, lbl)
 
-        # linhas internas
-        c.setDash(2, 3)
+        # linhas internas - Espaçamento aumentado para lh=24 (era 18)
+        c.setDash(1, 3)
         c.setStrokeColor(fg)
         c.setLineWidth(0.3)
-        for j in range(1, int(k_col_h / 16)):
-            yy = ky_top - 16 - j * 16
-            c.line(kx + 3, yy, kx + k_col_w - 3, yy)
+        lines_n = int((kh - 14) / 24)
+        for j in range(lines_n):
+            yy = k_top - 14 - (j + 1) * 24
+            c.line(kx + 4, yy, kx + kw - 4, yy)
         c.setDash()
 
-    # ── Coluna C: Notas Flexíveis ──────────────────────────────────────────
-    y_notes = section_box(c, right_x, cursor, right_w, col_area_h,
-                          "4. Fluxo de Trabalho & Notas Flexíveis")
-    note_lines(c, right_x, y_notes, right_w, col_area_h - 15, line_h=14)
-    c.setFont(FONT_I, 6.5)
+    # ── Item 4: Notas Flexíveis ───────────────────────────────────────────────
+    # Abaixo das colunas superiores, pegando 100% da largura
+    notas_y = cursor - COL_TOP_H - GAP
+    notas_h = 160
+
+    yi_n = box(c, MARGIN, notas_y, CONTENT_W, notas_h, "4. Fluxo de Trabalho & Notas Flexíveis", fs=7.5)
+    
+    # Altura da linha (lh) aumentada para 22 (era 16)
+    softlines(c, MARGIN, yi_n, CONTENT_W, notas_h - 16, lh=22) 
+    
+    c.setFont(FI, 6.5)
     c.setFillColor(GRAY_DARK)
-    c.drawRightString(right_x + right_w - 5,
-                      cursor - col_area_h + 5,
-                      "Capture ideias, bloqueios e insights.")
+    c.drawRightString(MARGIN + CONTENT_W - 5, notas_y - notas_h + 5,
+                      "Ideias, bloqueios e insights do dia.")
 
-    return cursor - col_area_h - 8
+    return notas_y - notas_h - GAP
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Reflexão  (seção final)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def draw_reflection(c, cursor):
-    """Seção reflexiva expandida. Retorna novo cursor."""
-    refl_h = 110
-    section_box(c, MARGIN, cursor, CONTENT_W, refl_h,
-                "5. Registro Reflexivo (Metacognição de Encerramento)")
-    inner_y = cursor - 15
+    # Altura disponível até o rodapé (~20 pt)
+    available = cursor - MARGIN - 20
+    refl_h    = available
 
-    # 3 células reflexivas
+    box(c, MARGIN, cursor, CONTENT_W, refl_h,
+        "5. Registro Reflexivo  —  Metacognição de Encerramento", fs=7.5)
+    inner_y = cursor - 14
+
+    # Proporções: 3 células reflexivas (75%) + "Amanhã" (25%)
+    cells_w  = CONTENT_W * 0.74
+    cell_w   = (cells_w - 10) / 3
+    cell_h   = refl_h - 18
+    gap_c    = 4
+
     cells = [
-        ("FASE DESCRITIVA",        "O QUE aconteceu? (fatos e cronologia)"),
-        ("FASE INTERPRETATIVA",    "POR QUÊ aconteceu? (causa e efeito)"),
+        ("FASE DESCRITIVA",         "O QUE aconteceu? (fatos e cronologia)"),
+        ("FASE INTERPRETATIVA",     "POR QUÊ aconteceu? (causa e efeito)"),
         ("FASE CRÍTICA / SISTÊMICA","APRENDIZADO: O que mudo amanhã?"),
     ]
-    cell_w = (CONTENT_W * 0.74 - 8) / 3
-    cell_h = refl_h - 20
 
     for i, (title, subtitle) in enumerate(cells):
-        cx = MARGIN + 2 + i * (cell_w + 4)
+        cx = MARGIN + 4 + i * (cell_w + gap_c)
+
         c.setFillColor(REFL)
         c.setStrokeColor(BLUE)
         c.setLineWidth(0.6)
         c.rect(cx, inner_y - cell_h, cell_w, cell_h, fill=1, stroke=1)
 
-        c.setFont(FONT_B, 7.5)
+        # mini-header da célula
         c.setFillColor(BLUE)
-        tw = c.stringWidth(title, FONT_B, 7.5)
-        c.drawString(cx + (cell_w - tw) / 2, inner_y - 11, title)
+        c.rect(cx, inner_y - 13, cell_w, 13, fill=1, stroke=0)
+        c.setFillColor(WHITE)
+        c.setFont(FB, 7.5)
+        tw = c.stringWidth(title, FB, 7.5)
+        c.drawString(cx + (cell_w - tw) / 2, inner_y - 10, title)
 
-        c.setFont(FONT_I, 6.5)
+        c.setFont(FI, 6.5)
         c.setFillColor(GRAY_DARK)
-        c.drawString(cx + 4, inner_y - 21, subtitle)
+        c.drawString(cx + 5, inner_y - 22, subtitle)
 
         c.setStrokeColor(GRAY)
         c.setLineWidth(0.3)
-        c.line(cx + 4, inner_y - 24, cx + cell_w - 4, inner_y - 24)
+        c.line(cx + 5, inner_y - 25, cx + cell_w - 5, inner_y - 25)
 
-        note_lines(c, cx, inner_y - 26, cell_w, cell_h - 28, line_h=13)
+        # Espaçamento muito maior (lh=26, era 16). 
+        # Isso diminui drasticamente a quantidade de linhas!
+        softlines(c, cx, inner_y - 27, cell_w, cell_h - 29, lh=26)
 
-    # Campo "Amanhã começa com:" — coluna direita da reflexão
-    tmr_x = MARGIN + 2 + 3 * (cell_w + 4) + 4
-    tmr_w = CONTENT_W - (tmr_x - MARGIN) - 2
-    tmr_h = refl_h - 20
+    # ── "Amanhã começa com:" ──────────────────────────────────────────────────
+    tmr_x = MARGIN + 4 + 3 * (cell_w + gap_c) + 2
+    tmr_w = CONTENT_W - (tmr_x - MARGIN) - 4
+    tmr_h = cell_h
 
     c.setFillColor(BLUE_LIGHT)
-    c.setStrokeColor(BLUE)
-    c.setLineWidth(1)
+    c.setStrokeColor(BLUE_DARK)
+    c.setLineWidth(1.2)
     c.rect(tmr_x, inner_y - tmr_h, tmr_w, tmr_h, fill=1, stroke=1)
 
-    c.setFont(FONT_B, 8)
+    # mini-header
     c.setFillColor(BLUE_DARK)
-    c.drawString(tmr_x + 5, inner_y - 12, "AMANHÃ COMEÇA COM:")
+    c.rect(tmr_x, inner_y - 13, tmr_w, 13, fill=1, stroke=0)
+    c.setFillColor(WHITE)
+    c.setFont(FB, 7.5)
+    c.drawString(tmr_x + 5, inner_y - 10, "AMANHÃ COMEÇA COM:")
 
-    c.setFont(FONT_I, 7)
+    c.setFont(FI, 7)
     c.setFillColor(GRAY_DARK)
-    c.drawString(tmr_x + 5, inner_y - 22,
-                 "A tarefa mais importante do dia seguinte:")
+    c.drawString(tmr_x + 5, inner_y - 22, "Tarefa mais importante do próximo dia:")
 
     c.setStrokeColor(BLUE)
     c.setLineWidth(0.8)
     c.line(tmr_x + 5, inner_y - 26, tmr_x + tmr_w - 5, inner_y - 26)
 
-    note_lines(c, tmr_x, inner_y - 28, tmr_w, tmr_h - 30, line_h=14)
+    # Mesma redução de linhas aqui (lh=26)
+    softlines(c, tmr_x, inner_y - 28, tmr_w, tmr_h - 30, lh=26)
 
-    return cursor - refl_h - 6
+    return cursor - refl_h - 4
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Footer
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def draw_footer(c, cursor):
-    """Rodapé minimalista com citação."""
-    c.setStrokeColor(colors.HexColor("#ecf0f1"))
-    c.setLineWidth(1)
+    c.setStrokeColor(GRAY)
+    c.setLineWidth(0.5)
     c.line(MARGIN, cursor, MARGIN + CONTENT_W, cursor)
 
-    quote = ('"A organização é o andaime externo da função executiva. '
-             'Sem reflexão, a produtividade é apenas um ciclo mecânico."')
-    c.setFont(FONT_I, 7.5)
+    quote = ('"Sem reflexão, a produtividade é apenas um ciclo mecânico."')
+    c.setFont(FI, 7)
     c.setFillColor(GRAY_DARK)
-    qw = c.stringWidth(quote, FONT_I, 7.5)
-    cx = MARGIN + CONTENT_W / 2
-    c.drawString(cx - qw / 2, cursor - 12, quote)
+    qw = c.stringWidth(quote, FI, 7)
+    c.drawString(MARGIN + CONTENT_W / 2 - qw / 2, cursor - 12, quote)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# Entry point
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def gerar_pdf(pdf_path: str) -> None:
     c = canvas.Canvas(pdf_path, pagesize=landscape(A3))
-    c.setTitle("Diário de Bordo Contemporâneo v2")
+    c.setTitle("Diário de Bordo Contemporâneo v3")
 
     cursor = PAGE_H - MARGIN
     cursor = draw_header(c, cursor)
-    cursor = draw_columns(c, cursor)
+    cursor -= 5                        # respiração entre header e seções
+    cursor = draw_sections(c, cursor)
     cursor = draw_reflection(c, cursor)
     draw_footer(c, cursor)
 
@@ -410,7 +445,7 @@ def gerar_pdf(pdf_path: str) -> None:
 
 
 if __name__ == "__main__":
-    output = sys.argv[1] if len(sys.argv) > 1 else "diario_de_bordo_v2_A3.pdf"
+    output = sys.argv[1] if len(sys.argv) > 1 else "diario_de_bordo_v3_A3_novo.pdf"
     try:
         gerar_pdf(output)
     except Exception as e:
