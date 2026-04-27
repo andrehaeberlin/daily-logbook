@@ -1,8 +1,11 @@
 # file: app.py
 """
-Diário de Bordo Contemporâneo v1.1.3 — A4 Landscape
+Diário de Bordo Contemporâneo v1.1.8 — A4 Landscape
 Atualizações:
-  - Correção do bug de cor (texto branco) na Prioridade Secundária 3.
+  - Refatoração: Princípio DRY aplicado com a função draw_checkbox_group.
+  - Nova Feature: Adicionado indicador de Humor (Mood Tracker) com 5 faces.
+  - Layout: Reordenação da barra de meta (Data > Energia > Sono > Humor > 5S).
+  - Nova Feature: Adicionado rastreador de 'Banheiro' na barra de hábitos. Uso dinâmico do eixo X.
 """
 
 import os
@@ -13,7 +16,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-version = "1.0-A4"
+version = "1.1.8-A4"
 
 # ── Configurações de Página ───────────────────────────────────────────────────
 PAGE_W, PAGE_H = landscape(A4)
@@ -46,6 +49,7 @@ FI = "Helvetica-Oblique"
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def box(c, x, y, w, h, title, fs=8, bar_h=15, color=BLUE, bg_color=PANEL):
+    """Desenha as caixas principais com um cabeçalho colorido."""
     c.setStrokeColor(GRAY)
     c.setLineWidth(0.5)
     c.setFillColor(bg_color)
@@ -61,6 +65,7 @@ def box(c, x, y, w, h, title, fs=8, bar_h=15, color=BLUE, bg_color=PANEL):
     return y - bar_h
 
 def softlines(c, x, y_top, w, h, lh=18, tag_margin=0, dashed=False):
+    """Desenha as linhas horizontais para anotações."""
     n = int(h / lh)
 
     if tag_margin > 0:
@@ -83,24 +88,79 @@ def softlines(c, x, y_top, w, h, lh=18, tag_margin=0, dashed=False):
     c.setDash(1, 0)
 
 def cb(c, x, y, size=10):
+    """Desenha uma única caixa de seleção (checkbox)."""
     c.setStrokeColor(GRAY_DARK)
     c.setLineWidth(0.7)
-    c.setFillColor(WHITE) # ⬅️ É aqui que a "caneta" fica branca!
+    c.setFillColor(WHITE) 
     c.rect(x, y, size, size, fill=1, stroke=1)
 
+def draw_checkbox_group(c, start_x, y, count, spacing=12, size=10):
+    """
+    Função DRY: Desenha uma sequência horizontal de caixas de seleção.
+    Retorna a posição x final logo após o grupo gerado.
+    """
+    px = start_x
+    for _ in range(count):
+        cb(c, px, y, size=size)
+        px += spacing
+    return px
+
 def energy_bar(c, x, y, segments=5, seg_w=15, seg_h=10):
+    """Desenha a barra de energia subdividida."""
     for i in range(segments):
         c.setStrokeColor(BLUE)
         c.setLineWidth(0.7)
         c.setFillColor(WHITE)
         c.rect(x + i * (seg_w + 1), y, seg_w, seg_h, fill=1, stroke=1)
 
+def draw_face(c, x, y, r, mood):
+    """
+    Desenha uma carinha vetorizada. moods: 
+    'very_happy', 'happy', 'neutral', 'sad', 'very_sad'
+    """
+    # 1. Rosto Base
+    c.setStrokeColor(GRAY_DARK)
+    c.setLineWidth(0.7)
+    c.setFillColor(WHITE)
+    c.circle(x, y, r, fill=1, stroke=1)
+    
+    c.setFillColor(GRAY_DARK)
+    c.setStrokeColor(GRAY_DARK)
+    
+    # 2. Olhos
+    if mood == 'very_sad':
+        c.setLineWidth(0.8)
+        c.line(x - r*0.5, y + r*0.35, x - r*0.2, y + r*0.15)
+        c.line(x - r*0.5, y - r*0.05, x - r*0.2, y + r*0.15)
+        c.line(x + r*0.5, y + r*0.35, x + r*0.2, y + r*0.15)
+        c.line(x + r*0.5, y - r*0.05, x + r*0.2, y + r*0.15)
+    elif mood == 'happy':
+        c.setLineWidth(0.8)
+        c.arc(x - r*0.55, y + r*0.1, x - r*0.15, y + r*0.4, 0, 180)
+        c.arc(x + r*0.15, y + r*0.1, x + r*0.55, y + r*0.4, 0, 180)
+    else:
+        c.circle(x - r*0.35, y + r*0.2, r*0.12, fill=1, stroke=0)
+        c.circle(x + r*0.35, y + r*0.2, r*0.12, fill=1, stroke=0)
+    
+    # 3. Boca
+    c.setLineWidth(0.8)
+    if mood == 'very_happy':
+        c.wedge(x - r*0.5, y - r*0.6, x + r*0.5, y + r*0.1, 180, 180, fill=1, stroke=0)
+    elif mood == 'happy':
+        c.arc(x - r*0.5, y - r*0.4, x + r*0.5, y + r*0.1, 180, 180)
+    elif mood == 'neutral':
+        c.line(x - r*0.4, y - r*0.2, x + r*0.4, y - r*0.2)
+    elif mood == 'sad':
+        c.arc(x - r*0.5, y - r*0.5, x + r*0.5, y - r*0.1, 0, 180)
+    elif mood == 'very_sad':
+        c.arc(x - r*0.4, y - r*0.5, x + r*0.4, y - r*0.2, 0, 180)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Construtores das Seções do PDF
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def draw_header(c, cursor):
-    """Atualizado: Adicionado campo SEMANA # ao lado de DIA #"""
+    """Monta o cabeçalho azul com metadados do dia."""
     y = cursor
 
     # ── Faixa azul de título ─────────────────────────────────────────────────
@@ -110,39 +170,39 @@ def draw_header(c, cursor):
 
     c.setFillColor(WHITE)
     c.setFont(FB, 14)
-    c.drawString(MARGIN + 6, y - title_bar_h + 7, "DIÁRIO DE BORDO")
+    c.drawString(MARGIN + 6, y - title_bar_h + 7, f"DIÁRIO DE BORDO — v{version}")
 
     # --- Área dos Números (Direita) ---
     c.setFont(FB, 10)
     
-    # Posição do DIA # (Mais à direita)
     label_dia = "DIA #"
-    dia_x = MARGIN + CONTENT_W - 85
-    c.drawString(dia_x, y - title_bar_h + 7, label_dia)
+    dia_x = MARGIN + CONTENT_W - 110
+    c.setFillColor(WHITE)
+    c.drawString(dia_x, y - title_bar_h + 8, label_dia)
     
-    c.setStrokeColor(WHITE)
-    c.setLineWidth(0.8)
-    # Linha para escrever o dia
-    c.line(dia_x + c.stringWidth(label_dia, FB, 10) + 3, y - title_bar_h + 9,
-           MARGIN + CONTENT_W - 6, y - title_bar_h + 9)
+    box_dia_x = dia_x + c.stringWidth(label_dia, FB, 10) + 4
+    c.setFillColor(WHITE)
+    c.rect(box_dia_x, y - title_bar_h + 5, 70, 14, fill=1, stroke=0)
 
-    # Posição da SEMANA # (À esquerda do DIA #)
     label_sem = "SEMANA #"
-    # Calculamos o recuo: 85 (do dia) + 90 (espaço para a semana) = 175
-    sem_x = MARGIN + CONTENT_W - 175 
-    c.drawString(sem_x, y - title_bar_h + 7, label_sem)
+    sem_x = MARGIN + CONTENT_W - 210 
+    c.setFillColor(WHITE)
+    c.drawString(sem_x, y - title_bar_h + 8, label_sem)
     
-    # Linha para escrever a semana
-    c.line(sem_x + c.stringWidth(label_sem, FB, 10) + 3, y - title_bar_h + 9,
-           dia_x - 10, y - title_bar_h + 9)
+    box_sem_x = sem_x + c.stringWidth(label_sem, FB, 10) + 4
+    c.setFillColor(WHITE)
+    c.rect(box_sem_x, y - title_bar_h + 5, 35, 14, fill=1, stroke=0)
 
     y -= title_bar_h
 
-    # ── Linha de meta: DATA | ENERGIA | HIGIENE ──────────────────────────────
+    # ── Linha de meta: DATA | ENERGIA | SONO | HUMOR | 5S ──────
     meta_h = 18
     c.setFillColor(BLUE_LIGHT)
     c.rect(MARGIN, y - meta_h, CONTENT_W, meta_h, fill=1, stroke=0)
+    
     my = y - meta_h + 5
+    
+    # 1. DATA
     mx = MARGIN + 6
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
@@ -152,25 +212,57 @@ def draw_header(c, cursor):
     c.setFillColor(TEXT)
     c.drawString(mx, my, "____/____/_______")
 
-    ex = MARGIN + CONTENT_W * 0.25
+    # 2. ENERGIA
+    ex = MARGIN + CONTENT_W * 0.17
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(ex, my, "ENERGIA:")
     energy_bar(c, ex + c.stringWidth("ENERGIA:", FB, 8) + 4, my - 1, seg_w=14, seg_h=10)
 
-    hx = MARGIN + CONTENT_W * 0.52
+    # 3. SONO
+    sx = MARGIN + CONTENT_W * 0.35
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
-    c.drawString(hx, my, "HIGIENE:")
-    hx += c.stringWidth("HIGIENE:", FB, 8) + 6
+    c.drawString(sx, my, "SONO:")
+    sx += c.stringWidth("SONO:", FB, 8) + 4
+    c.setFillColor(WHITE)
+    c.setStrokeColor(GRAY_DARK)
+    c.setLineWidth(0.5)
+    c.rect(sx, my - 2, 32, 11, fill=1, stroke=1)
+    c.setFont(F, 8)
+    c.setFillColor(TEXT)
+    c.drawString(sx + 35, my, "h")
+
+    # 4. HUMOR
+    hx = MARGIN + CONTENT_W * 0.48
+    c.setFont(FB, 8)
+    c.setFillColor(BLUE_DARK)
+    c.drawString(hx, my, "HUMOR:")
+    hx += c.stringWidth("HUMOR:", FB, 8) + 12
+    
+    raio_rosto = 5.5
+    moods = ['very_happy', 'happy', 'neutral', 'sad', 'very_sad']
+    for mood in moods:
+        draw_face(c, hx, my + 3, raio_rosto, mood)
+        hx += 16
+
+    # 5. 5S
+    fx = MARGIN + CONTENT_W * 0.68
+    c.setFont(FB, 8)
+    c.setFillColor(BLUE_DARK)
+    c.drawString(fx, my, "5S:")
+    fx += c.stringWidth("5S:", FB, 8) + 6
+    
     for label in ["OFF", "MESA", "COMPUTADOR", "CELULAR"]:
-        cb(c, hx, my - 1, size=10)
+        cb(c, fx, my - 1, size=10)
         c.setFont(F, 8)
         c.setFillColor(TEXT)
-        c.drawString(hx + 12, my, label)
-        hx += c.stringWidth(label, F, 8) + 24
+        c.drawString(fx + 12, my, label)
+        fx += c.stringWidth(label, F, 8) + 18 
+
     y -= meta_h
 
+    # ── Linha de Intenção ────────────────────────────────────────────────────
     int_h = 18
     c.setFillColor(colors.HexColor("#f5f8fa"))
     c.rect(MARGIN, y - int_h, CONTENT_W, int_h, fill=1, stroke=0)
@@ -190,6 +282,7 @@ def draw_header(c, cursor):
     return y - int_h
 
 def draw_sections(c, cursor):
+    """Monta o corpo do diário: Captura, Priorização e Notas."""
     GAP = 10
     COL_H = 360
     lw = (CONTENT_W - GAP) * 0.50
@@ -235,7 +328,7 @@ def draw_sections(c, cursor):
     fo_y = yi_prio - 45
     fo_w = rw - 10
     
-    # ── Tarefa 1: OURO (Caixa Laranja)
+    # ── Tarefa 1: OURO 
     c.setFillColor(ORANGE_LIGHT)
     c.setStrokeColor(ORANGE)
     c.rect(fo_x, fo_y, fo_w, 40, fill=1, stroke=1)
@@ -249,9 +342,7 @@ def draw_sections(c, cursor):
     c.setFont(FB, 7.5)
     c.drawString(fo_x + 5, fo_y + 8, "POMODOROS:")
     px = fo_x + c.stringWidth("POMODOROS:", FB, 7.5) + 12
-    for _ in range(12):
-        cb(c, px, fo_y + 6, size=10)
-        px += 12
+    draw_checkbox_group(c, px, fo_y + 6, count=12)
 
     # ── Tarefa 2: Secundária
     c.setFont(FB, 8)
@@ -263,13 +354,11 @@ def draw_sections(c, cursor):
     c.setFont(FB, 7.5)
     c.drawString(rx + 5, fo_y - 32, "POMODOROS:")
     px = rx + 5 + c.stringWidth("POMODOROS:", FB, 7.5) + 12
-    for _ in range(9):
-        cb(c, px, fo_y - 34, size=10)
-        px += 12
+    draw_checkbox_group(c, px, fo_y - 34, count=9)
 
     # ── Tarefa 3: Secundária
     c.setFont(FB, 8)
-    c.setFillColor(GRAY_DARK) # ⬅️ Aqui mandamos a caneta voltar a ser escura!
+    c.setFillColor(GRAY_DARK) 
     c.drawString(rx + 5, fo_y - 55, "3. Secundária:")
     c.setStrokeColor(LINE)
     c.line(rx + 5, fo_y - 60, rx + rw - 5, fo_y - 60)
@@ -277,9 +366,7 @@ def draw_sections(c, cursor):
     c.setFont(FB, 7.5)
     c.drawString(rx + 5, fo_y - 72, "POMODOROS:")
     px = rx + 5 + c.stringWidth("POMODOROS:", FB, 7.5) + 12
-    for _ in range(6):
-        cb(c, px, fo_y - 74, size=10)
-        px += 12
+    draw_checkbox_group(c, px, fo_y - 74, count=6)
 
     notas_y = cursor - prio_h - GAP
     notas_h = COL_H - prio_h - GAP
@@ -296,6 +383,7 @@ def draw_sections(c, cursor):
     return cursor - COL_H - GAP
 
 def draw_reflection(c, cursor):
+    """Monta a seção final de metacognição."""
     refl_h = 80
     GAP = 10
     box(c, MARGIN, cursor, CONTENT_W, refl_h, "4. Fechamento — Metacognição", fs=8)
@@ -347,6 +435,7 @@ def draw_reflection(c, cursor):
     return cursor - refl_h - GAP
 
 def draw_habits_and_footer(c, cursor):
+    """Monta a barra inferior de hábitos e a citação."""
     hab_h = 16
     c.setFillColor(colors.HexColor("#f5f8fa"))
     c.rect(MARGIN, cursor - hab_h, CONTENT_W, hab_h, fill=1, stroke=0)
@@ -361,30 +450,38 @@ def draw_habits_and_footer(c, cursor):
     c.drawString(hx, hy, "HÁBITOS:")
     hx += c.stringWidth("HÁBITOS:", FB, 7.5) + 15
 
-    for label in ["Exercícios", "Devocional", "Leitura", "Estudos", "Sono"]:
+    for label in ["Exercícios", "Devocional", "Leitura", "Estudos"]:
         cb(c, hx, hy - 1, size=10)
         c.setFont(F, 7.5)
         c.setFillColor(TEXT)
         c.drawString(hx + 11, hy, label)
         hx += c.stringWidth(label, F, 7.5) + 25
 
-    hx += 30
+    # ✨ Dica da Ateninha: Usamos o X dinâmico aqui para não precisar chutar o espaçamento!
+    # CAFÉ
     c.setFont(FB, 7.5)
     c.setFillColor(GRAY_DARK)
     c.drawString(hx, hy, "CAFÉ:")
     hx += c.stringWidth("CAFÉ:", FB, 7.5) + 5
-    for _ in range(8):
-        cb(c, hx, hy - 1, size=10)
-        hx += 12
+    hx = draw_checkbox_group(c, hx, hy - 1, count=8)
 
-    hx += 30
+    hx += 12 # Espaço entre Café e Água
+    
+    # ÁGUA
     c.setFont(FB, 7.5)
     c.setFillColor(GRAY_DARK)
     c.drawString(hx, hy, "ÁGUA:")
     hx += c.stringWidth("ÁGUA:", FB, 7.5) + 5
-    for _ in range(16):
-        cb(c, hx, hy - 1, size=10)
-        hx += 12
+    hx = draw_checkbox_group(c, hx, hy - 1, count=16)
+
+    hx += 12 # Espaço entre Água e Banheiro
+
+    # BANHEIRO
+    c.setFont(FB, 7.5)
+    c.setFillColor(GRAY_DARK)
+    c.drawString(hx, hy, "BANHEIRO:")
+    hx += c.stringWidth("BANHEIRO:", FB, 7.5) + 5
+    hx = draw_checkbox_group(c, hx, hy - 1, count=8) # Ajuste a quantidade aqui se quiser!
 
     cursor -= hab_h + 8
 
@@ -395,6 +492,7 @@ def draw_habits_and_footer(c, cursor):
     c.drawString(MARGIN + CONTENT_W / 2 - qw / 2, cursor - 10, quote)
 
 def draw_dot_grid(c):
+    """Gera uma folha de fundo pontilhada."""
     c.showPage()
     c.setFillColor(GRAY)
     spacing = 5 * mm 
@@ -408,6 +506,7 @@ def draw_dot_grid(c):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def gerar_pdf(pdf_path: str) -> None:
+    """Orquestra as funções para desenhar as camadas do PDF."""
     c = canvas.Canvas(pdf_path, pagesize=landscape(A4))
     c.setTitle(f"Diário de Bordo Contemporâneo v{version}")
 
