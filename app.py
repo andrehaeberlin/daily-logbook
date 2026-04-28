@@ -1,11 +1,13 @@
 # file: app.py
 """
-Diário de Bordo Contemporâneo v1.1.8 — A4 Landscape
+Diário de Bordo Contemporâneo v1.1.11 — A4 Landscape
 Atualizações:
   - Refatoração: Princípio DRY aplicado com a função draw_checkbox_group.
   - Nova Feature: Adicionado indicador de Humor (Mood Tracker) com 5 faces.
-  - Layout: Reordenação da barra de meta (Data > Energia > Sono > Humor > 5S).
-  - Nova Feature: Adicionado rastreador de 'Banheiro' na barra de hábitos. Uso dinâmico do eixo X.
+  - Layout: Reordenação da barra de meta e ajuste de espaçamentos horizontais.
+  - Nova Feature: Adicionado campos de Entrada e Saída.
+  - Texto: Remoção de placeholder na linha de inspiração e linha elástica.
+  - Layout: Campo de DATA movido para o cabeçalho principal.
 """
 
 import os
@@ -16,7 +18,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-version = "1.1.8-A4"
+version = "1.1.11-A4"
 
 # ── Configurações de Página ───────────────────────────────────────────────────
 PAGE_W, PAGE_H = landscape(A4)
@@ -118,7 +120,6 @@ def draw_face(c, x, y, r, mood):
     Desenha uma carinha vetorizada. moods: 
     'very_happy', 'happy', 'neutral', 'sad', 'very_sad'
     """
-    # 1. Rosto Base
     c.setStrokeColor(GRAY_DARK)
     c.setLineWidth(0.7)
     c.setFillColor(WHITE)
@@ -127,7 +128,6 @@ def draw_face(c, x, y, r, mood):
     c.setFillColor(GRAY_DARK)
     c.setStrokeColor(GRAY_DARK)
     
-    # 2. Olhos
     if mood == 'very_sad':
         c.setLineWidth(0.8)
         c.line(x - r*0.5, y + r*0.35, x - r*0.2, y + r*0.15)
@@ -142,7 +142,6 @@ def draw_face(c, x, y, r, mood):
         c.circle(x - r*0.35, y + r*0.2, r*0.12, fill=1, stroke=0)
         c.circle(x + r*0.35, y + r*0.2, r*0.12, fill=1, stroke=0)
     
-    # 3. Boca
     c.setLineWidth(0.8)
     if mood == 'very_happy':
         c.wedge(x - r*0.5, y - r*0.6, x + r*0.5, y + r*0.1, 180, 180, fill=1, stroke=0)
@@ -185,7 +184,7 @@ def draw_header(c, cursor):
     c.rect(box_dia_x, y - title_bar_h + 5, 70, 14, fill=1, stroke=0)
 
     label_sem = "SEMANA #"
-    sem_x = MARGIN + CONTENT_W - 210 
+    sem_x = MARGIN + CONTENT_W - 220 
     c.setFillColor(WHITE)
     c.drawString(sem_x, y - title_bar_h + 8, label_sem)
     
@@ -193,34 +192,54 @@ def draw_header(c, cursor):
     c.setFillColor(WHITE)
     c.rect(box_sem_x, y - title_bar_h + 5, 35, 14, fill=1, stroke=0)
 
+    # ✨ Nova Feature: DATA no cabeçalho
+    label_data = "DATA:"
+    data_x = MARGIN + CONTENT_W - 350
+    c.setFillColor(WHITE)
+    c.drawString(data_x, y - title_bar_h + 8, label_data)
+    
+    box_data_x = data_x + c.stringWidth(label_data, FB, 10) + 4
+    c.setFillColor(WHITE)
+    # Crio uma caixinha um pouco maior para caber uma data no formato DD/MM/AAAA
+    c.rect(box_data_x, y - title_bar_h + 5, 80, 14, fill=1, stroke=0)
+
     y -= title_bar_h
 
-    # ── Linha de meta: DATA | ENERGIA | SONO | HUMOR | 5S ──────
+    # ── Linha de meta: HORÁRIOS | ENERGIA | SONO | HUMOR | 5S ──────
     meta_h = 18
     c.setFillColor(BLUE_LIGHT)
     c.rect(MARGIN, y - meta_h, CONTENT_W, meta_h, fill=1, stroke=0)
     
     my = y - meta_h + 5
     
-    # 1. DATA
-    mx = MARGIN + 6
+    # 1. HORÁRIOS (Entrada e Saída) -> Agora assume a primeira posição à esquerda!
+    hx_time = MARGIN + 6
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
-    c.drawString(mx, my, "DATA:")
-    mx += c.stringWidth("DATA:", FB, 8) + 4
+    c.drawString(hx_time, my, "ENTRADA:")
+    hx_time += c.stringWidth("ENTRADA:", FB, 8) + 4
     c.setFont(F, 8)
     c.setFillColor(TEXT)
-    c.drawString(mx, my, "____/____/_______")
+    c.drawString(hx_time, my, "___ : ___")
 
-    # 2. ENERGIA
-    ex = MARGIN + CONTENT_W * 0.17
+    hx_time += c.stringWidth("___ : ___", F, 8) + 12 # Espaço extra entre os horários
+    c.setFont(FB, 8)
+    c.setFillColor(BLUE_DARK)
+    c.drawString(hx_time, my, "SAÍDA:")
+    hx_time += c.stringWidth("SAÍDA:", FB, 8) + 4
+    c.setFont(F, 8)
+    c.setFillColor(TEXT)
+    c.drawString(hx_time, my, "___ : ___")
+
+    # 2. ENERGIA -> Empurrado para 22% da tela
+    ex = MARGIN + CONTENT_W * 0.22
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(ex, my, "ENERGIA:")
     energy_bar(c, ex + c.stringWidth("ENERGIA:", FB, 8) + 4, my - 1, seg_w=14, seg_h=10)
 
-    # 3. SONO
-    sx = MARGIN + CONTENT_W * 0.35
+    # 3. SONO -> Empurrado para 40% da tela
+    sx = MARGIN + CONTENT_W * 0.40
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(sx, my, "SONO:")
@@ -233,8 +252,8 @@ def draw_header(c, cursor):
     c.setFillColor(TEXT)
     c.drawString(sx + 35, my, "h")
 
-    # 4. HUMOR
-    hx = MARGIN + CONTENT_W * 0.48
+    # 4. HUMOR -> Empurrado para 55% da tela
+    hx = MARGIN + CONTENT_W * 0.525
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(hx, my, "HUMOR:")
@@ -246,8 +265,8 @@ def draw_header(c, cursor):
         draw_face(c, hx, my + 3, raio_rosto, mood)
         hx += 16
 
-    # 5. 5S
-    fx = MARGIN + CONTENT_W * 0.68
+    # 5. 5S -> Empurrado para 72% da tela
+    fx = MARGIN + CONTENT_W * 0.72
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(fx, my, "5S:")
@@ -262,23 +281,22 @@ def draw_header(c, cursor):
 
     y -= meta_h
 
-    # ── Linha de Intenção ────────────────────────────────────────────────────
+    # ── Linha de Inspiração ────────────────────────────────────────────────────
     int_h = 18
     c.setFillColor(colors.HexColor("#f5f8fa"))
     c.rect(MARGIN, y - int_h, CONTENT_W, int_h, fill=1, stroke=0)
     iy = y - int_h + 5
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
-    c.drawString(MARGIN + 6, iy, "INTENÇÃO DO DIA:")
-    c.setFont(FI, 8)
-    c.setFillColor(GRAY_DARK)
-    c.drawString(
-        MARGIN + 6 + c.stringWidth("INTENÇÃO DO DIA: ", FB, 8),
-        iy,
-        "(Palavra ou frase curta do dia)",
-    )
+    
+    titulo_inspiracao = "INSPIRAÇÃO DO DIA:"
+    c.drawString(MARGIN + 6, iy, titulo_inspiracao)
+    
+    inicio_linha = MARGIN + 6 + c.stringWidth(titulo_inspiracao, FB, 8) + 5
+    
     c.setStrokeColor(LINE)
-    c.line(MARGIN + 190, iy - 2, MARGIN + CONTENT_W - 6, iy - 2)
+    c.line(inicio_linha, iy - 2, MARGIN + CONTENT_W - 6, iy - 2)
+    
     return y - int_h
 
 def draw_sections(c, cursor):
@@ -448,16 +466,15 @@ def draw_habits_and_footer(c, cursor):
     c.setFont(FB, 7.5)
     c.setFillColor(GRAY_DARK)
     c.drawString(hx, hy, "HÁBITOS:")
-    hx += c.stringWidth("HÁBITOS:", FB, 7.5) + 15
+    hx += c.stringWidth("HÁBITOS:", FB, 7.5) + 10
 
     for label in ["Exercícios", "Devocional", "Leitura", "Estudos"]:
         cb(c, hx, hy - 1, size=10)
         c.setFont(F, 7.5)
         c.setFillColor(TEXT)
         c.drawString(hx + 11, hy, label)
-        hx += c.stringWidth(label, F, 7.5) + 25
+        hx += c.stringWidth(label, F, 7.5) + 20
 
-    # ✨ Dica da Ateninha: Usamos o X dinâmico aqui para não precisar chutar o espaçamento!
     # CAFÉ
     c.setFont(FB, 7.5)
     c.setFillColor(GRAY_DARK)
@@ -481,7 +498,7 @@ def draw_habits_and_footer(c, cursor):
     c.setFillColor(GRAY_DARK)
     c.drawString(hx, hy, "BANHEIRO:")
     hx += c.stringWidth("BANHEIRO:", FB, 7.5) + 5
-    hx = draw_checkbox_group(c, hx, hy - 1, count=8) # Ajuste a quantidade aqui se quiser!
+    hx = draw_checkbox_group(c, hx, hy - 1, count=10)
 
     cursor -= hab_h + 8
 
