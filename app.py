@@ -1,13 +1,11 @@
 # file: app.py
 """
-Diário de Bordo Contemporâneo v1.1.11 — A4 Landscape
+Diário de Bordo Contemporâneo v1.1.13 — A4 Landscape
 Atualizações:
-  - Refatoração: Princípio DRY aplicado com a função draw_checkbox_group.
+  - Correção de Bug (v1.1.13): Aumento do 'prio_h' para 165, impedindo a sobreposição da tarefa Cobre com a seção de Notas.
+  - Layout: Seção de Priorização atualizada para Ouro, Prata, Bronze e Cobre.
   - Nova Feature: Adicionado indicador de Humor (Mood Tracker) com 5 faces.
-  - Layout: Reordenação da barra de meta e ajuste de espaçamentos horizontais.
   - Nova Feature: Adicionado campos de Entrada e Saída.
-  - Texto: Remoção de placeholder na linha de inspiração e linha elástica.
-  - Layout: Campo de DATA movido para o cabeçalho principal.
 """
 
 import os
@@ -18,7 +16,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-version = "1.1.11-A4"
+version = "1.1.13-A4"
 
 # ── Configurações de Página ───────────────────────────────────────────────────
 PAGE_W, PAGE_H = landscape(A4)
@@ -192,7 +190,7 @@ def draw_header(c, cursor):
     c.setFillColor(WHITE)
     c.rect(box_sem_x, y - title_bar_h + 5, 35, 14, fill=1, stroke=0)
 
-    # ✨ Nova Feature: DATA no cabeçalho
+    # DATA no cabeçalho
     label_data = "DATA:"
     data_x = MARGIN + CONTENT_W - 350
     c.setFillColor(WHITE)
@@ -200,7 +198,6 @@ def draw_header(c, cursor):
     
     box_data_x = data_x + c.stringWidth(label_data, FB, 10) + 4
     c.setFillColor(WHITE)
-    # Crio uma caixinha um pouco maior para caber uma data no formato DD/MM/AAAA
     c.rect(box_data_x, y - title_bar_h + 5, 80, 14, fill=1, stroke=0)
 
     y -= title_bar_h
@@ -212,7 +209,7 @@ def draw_header(c, cursor):
     
     my = y - meta_h + 5
     
-    # 1. HORÁRIOS (Entrada e Saída) -> Agora assume a primeira posição à esquerda!
+    # 1. HORÁRIOS
     hx_time = MARGIN + 6
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
@@ -222,7 +219,7 @@ def draw_header(c, cursor):
     c.setFillColor(TEXT)
     c.drawString(hx_time, my, "___ : ___")
 
-    hx_time += c.stringWidth("___ : ___", F, 8) + 12 # Espaço extra entre os horários
+    hx_time += c.stringWidth("___ : ___", F, 8) + 12
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(hx_time, my, "SAÍDA:")
@@ -231,14 +228,14 @@ def draw_header(c, cursor):
     c.setFillColor(TEXT)
     c.drawString(hx_time, my, "___ : ___")
 
-    # 2. ENERGIA -> Empurrado para 22% da tela
+    # 2. ENERGIA
     ex = MARGIN + CONTENT_W * 0.22
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
     c.drawString(ex, my, "ENERGIA:")
     energy_bar(c, ex + c.stringWidth("ENERGIA:", FB, 8) + 4, my - 1, seg_w=14, seg_h=10)
 
-    # 3. SONO -> Empurrado para 40% da tela
+    # 3. SONO
     sx = MARGIN + CONTENT_W * 0.40
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
@@ -252,7 +249,7 @@ def draw_header(c, cursor):
     c.setFillColor(TEXT)
     c.drawString(sx + 35, my, "h")
 
-    # 4. HUMOR -> Empurrado para 55% da tela
+    # 4. HUMOR
     hx = MARGIN + CONTENT_W * 0.525
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
@@ -265,7 +262,7 @@ def draw_header(c, cursor):
         draw_face(c, hx, my + 3, raio_rosto, mood)
         hx += 16
 
-    # 5. 5S -> Empurrado para 72% da tela
+    # 5. 5S
     fx = MARGIN + CONTENT_W * 0.72
     c.setFont(FB, 8)
     c.setFillColor(BLUE_DARK)
@@ -329,7 +326,8 @@ def draw_sections(c, cursor):
         c.line(lx + 22, yy, lx + lw - 5, yy)
     c.setDash()
 
-    prio_h = 140
+    # ✨ CORREÇÃO: Aumentamos o 'prio_h' de 140 para 165 para caber as 4 opções!
+    prio_h = 165
     yi_prio = box(
         c,
         rx,
@@ -346,7 +344,7 @@ def draw_sections(c, cursor):
     fo_y = yi_prio - 45
     fo_w = rw - 10
     
-    # ── Tarefa 1: OURO 
+    # ── Tarefa 1: OURO ────────────────────────────────────────────────────────
     c.setFillColor(ORANGE_LIGHT)
     c.setStrokeColor(ORANGE)
     c.rect(fo_x, fo_y, fo_w, 40, fill=1, stroke=1)
@@ -360,32 +358,45 @@ def draw_sections(c, cursor):
     c.setFont(FB, 7.5)
     c.drawString(fo_x + 5, fo_y + 8, "POMODOROS:")
     px = fo_x + c.stringWidth("POMODOROS:", FB, 7.5) + 12
-    draw_checkbox_group(c, px, fo_y + 6, count=12)
+    draw_checkbox_group(c, px, fo_y + 6, count=16)
 
-    # ── Tarefa 2: Secundária
+    # ── Tarefa 2: PRATA ───────────────────────────────────────────────────────
     c.setFont(FB, 8)
     c.setFillColor(GRAY_DARK)
-    c.drawString(rx + 5, fo_y - 15, "2. Secundária:")
+    c.drawString(rx + 5, fo_y - 12, "2. PRATA:")
     c.setStrokeColor(LINE)
-    c.line(rx + 5, fo_y - 20, rx + rw - 5, fo_y - 20)
+    c.line(rx + 5, fo_y - 17, rx + rw - 5, fo_y - 17)
 
     c.setFont(FB, 7.5)
-    c.drawString(rx + 5, fo_y - 32, "POMODOROS:")
+    c.drawString(rx + 5, fo_y - 28, "POMODOROS:")
     px = rx + 5 + c.stringWidth("POMODOROS:", FB, 7.5) + 12
-    draw_checkbox_group(c, px, fo_y - 34, count=9)
+    draw_checkbox_group(c, px, fo_y - 30, count=12)
 
-    # ── Tarefa 3: Secundária
+    # ── Tarefa 3: BRONZE ──────────────────────────────────────────────────────
     c.setFont(FB, 8)
     c.setFillColor(GRAY_DARK) 
-    c.drawString(rx + 5, fo_y - 55, "3. Secundária:")
+    c.drawString(rx + 5, fo_y - 45, "3. BRONZE:")
     c.setStrokeColor(LINE)
-    c.line(rx + 5, fo_y - 60, rx + rw - 5, fo_y - 60)
+    c.line(rx + 5, fo_y - 50, rx + rw - 5, fo_y - 50)
 
     c.setFont(FB, 7.5)
-    c.drawString(rx + 5, fo_y - 72, "POMODOROS:")
+    c.drawString(rx + 5, fo_y - 61, "POMODOROS:")
     px = rx + 5 + c.stringWidth("POMODOROS:", FB, 7.5) + 12
-    draw_checkbox_group(c, px, fo_y - 74, count=6)
+    draw_checkbox_group(c, px, fo_y - 63, count=8)
 
+    # ── Tarefa 4: COBRE ───────────────────────────────────────────────────────
+    c.setFont(FB, 8)
+    c.setFillColor(GRAY_DARK) 
+    c.drawString(rx + 5, fo_y - 78, "4. COBRE:")
+    c.setStrokeColor(LINE)
+    c.line(rx + 5, fo_y - 83, rx + rw - 5, fo_y - 83)
+
+    c.setFont(FB, 7.5)
+    c.drawString(rx + 5, fo_y - 94, "POMODOROS:")
+    px = rx + 5 + c.stringWidth("POMODOROS:", FB, 7.5) + 12
+    draw_checkbox_group(c, px, fo_y - 96, count=4)
+
+    # ── Seção de Notas (Ajustada Dinamicamente) ───────────────────────────────
     notas_y = cursor - prio_h - GAP
     notas_h = COL_H - prio_h - GAP
     yi_n = box(
